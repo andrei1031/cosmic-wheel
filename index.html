@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Wheel: Singularity</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;600;800&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --theme-primary: #00f3ff;
+            --theme-secondary: #bc13fe;
+            --theme-accent: #8a2be2;
+            --theme-pointer: #ff0055;
+            --glass-bg: rgba(10, 10, 30, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        /* THEMES */
+        body.theme-red {
+            --theme-primary: #ff2a2a; --theme-secondary: #ff8800;
+            --theme-accent: #ff0000; --theme-pointer: #ffff00;
+            background: radial-gradient(circle at center, #2a0505 0%, #000000 100%);
+        }
+        body.theme-bio {
+            --theme-primary: #39ff14; --theme-secondary: #ccff00;
+            --theme-accent: #206b12; --theme-pointer: #ff00ff;
+            background: radial-gradient(circle at center, #0a1a05 0%, #000000 100%);
+        }
+        body.theme-disco {
+            animation: discoBg 5s infinite alternate;
+        }
+        @keyframes discoBg {
+            0% { --theme-primary: #ff0000; --theme-secondary: #00ff00; background: #1a0000; }
+            25% { --theme-primary: #00ff00; --theme-secondary: #0000ff; background: #001a00; }
+            50% { --theme-primary: #0000ff; --theme-secondary: #ff00ff; background: #00001a; }
+            75% { --theme-primary: #ff00ff; --theme-secondary: #ffff00; background: #1a001a; }
+            100% { --theme-primary: #ffff00; --theme-secondary: #ff0000; background: #1a1a00; }
+        }
+
+        body {
+            font-family: 'Exo 2', sans-serif;
+            background-color: #050510; color: #ffffff;
+            overflow-x: hidden; margin: 0; padding: 0; min-height: 100vh;
+            background: radial-gradient(circle at center, #0b0b20 0%, #000000 100%);
+            perspective: 1000px; transition: background 1s ease;
+        }
+
+        h1, h2, h3, .brand-font { font-family: 'Orbitron', sans-serif; }
+        .mono-font { font-family: 'Share Tech Mono', monospace; }
+        
+        #starfield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+
+        /* OVERLAYS */
+        #glitch-overlay, #cinematic-overlay, #destruct-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 50; display: none;
+        }
+        
+        /* Glitch */
+        #glitch-overlay {
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            z-index: 9998; animation: flicker 0.15s infinite;
+        }
+        body.glitch-active #glitch-overlay { display: block; }
+        @keyframes flicker { 0% { opacity: 0.1; } 5% { opacity: 0.2; } 10% { opacity: 0.1; } }
+
+        /* Cinematic */
+        #cinematic-overlay { background: rgba(0,0,0,0.8); transition: opacity 0.5s; opacity: 0; display: block; }
+        body.cinematic-active #cinematic-overlay { opacity: 1; }
+
+        /* Self Destruct */
+        #destruct-overlay {
+            background: red; opacity: 0; mix-blend-mode: overlay; z-index: 200;
+            transition: opacity 0.1s;
+        }
+        body.destruct-active #destruct-overlay { animation: alarmFlash 0.5s infinite; display: block; opacity: 0.5; }
+        @keyframes alarmFlash { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.8; } }
+
+        /* UI */
+        .glass-panel {
+            background: var(--glass-bg); backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px); border: 1px solid var(--glass-border);
+            border-radius: 1rem; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: all 0.5s ease-out;
+        }
+
+        .wheel-stage { perspective: 1200px; transform-style: preserve-3d; z-index: 20; }
+        .wheel-container {
+            position: relative; filter: drop-shadow(0 0 30px var(--theme-primary));
+            transition: transform 0.1s ease-out, filter 0.2s ease;
+            transform-style: preserve-3d; pointer-events: none; 
+        }
+        
+        /* Pointer */
+        .pointer-container {
+            position: absolute; top: -25px; left: 50%;
+            transform: translateX(-50%) translateZ(20px);
+            width: 50px; height: 60px; z-index: 20; transform-origin: top center; pointer-events: none;
+        }
+        .pointer-body {
+            width: 0; height: 0; border-left: 20px solid transparent;
+            border-right: 20px solid transparent; border-top: 50px solid var(--theme-pointer);
+            filter: drop-shadow(0 0 15px var(--theme-pointer)); transition: border-top-color 0.5s;
+        }
+        .pointer-cap {
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            width: 14px; height: 14px; background: #fff; border-radius: 50%; box-shadow: 0 0 10px #fff;
+        }
+
+        textarea {
+            background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e0e0e0; resize: none; transition: all 0.3s ease;
+        }
+        textarea:focus { outline: none; border-color: var(--theme-primary); box-shadow: 0 0 20px var(--theme-primary); }
+
+        .log-entry {
+            border-left: 2px solid var(--theme-secondary); padding-left: 10px;
+            margin-bottom: 8px; font-size: 0.8rem; opacity: 0; animation: fadeIn 0.5s forwards;
+        }
+        @keyframes fadeIn { to { opacity: 1; } }
+
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .btn-glow { position: relative; overflow: hidden; transition: all 0.3s ease; z-index: 100; }
+        .btn-glow::after {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: 0.5s; pointer-events: none;
+        }
+        .btn-glow:hover::after { left: 100%; }
+
+        .theme-btn {
+            width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+            border: 2px solid rgba(255,255,255,0.5); transition: transform 0.2s;
+        }
+        .theme-btn:hover { transform: scale(1.2); border-color: white; }
+        .theme-btn.active { box-shadow: 0 0 10px white; border-color: white; transform: scale(1.1); }
+
+        .reactor-pulse { animation: pulseCore 2s infinite; }
+        @keyframes pulseCore {
+            0% { box-shadow: 0 0 20px var(--theme-primary); }
+            50% { box-shadow: 0 0 40px var(--theme-primary); }
+            100% { box-shadow: 0 0 20px var(--theme-primary); }
+        }
+        
+        /* Listening Pulse */
+        .listening-pulse { animation: listen 1s infinite alternate; color: #ff0055; }
+        @keyframes listen { from { text-shadow: 0 0 10px red; } to { text-shadow: 0 0 20px red; transform: scale(1.1); } }
+
+        /* Rank Badge */
+        .rank-badge {
+            background: linear-gradient(45deg, var(--theme-primary), var(--theme-secondary));
+            color: black; font-weight: 900; padding: 2px 8px; border-radius: 4px;
+            text-transform: uppercase; font-size: 0.7em; letter-spacing: 1px;
+            box-shadow: 0 0 10px var(--theme-primary);
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--theme-primary); }
+    </style>
+</head>
+<body class="flex flex-col items-center theme-standard">
+
+    <canvas id="starfield"></canvas>
+    <div id="glitch-overlay"></div>
+    <div id="cinematic-overlay"></div>
+    <div id="destruct-overlay"></div>
+
+    <!-- Self Destruct Modal -->
+    <div id="destructModal" class="fixed inset-0 z-[200] flex items-center justify-center bg-red-900/90 hidden">
+        <div class="text-center p-10 border-4 border-red-500 bg-black rounded-xl shadow-[0_0_100px_red]">
+            <h1 class="text-6xl font-black text-red-500 mb-4 animate-pulse brand-font">WARNING</h1>
+            <p class="text-2xl text-white mb-6 font-mono">SELF DESTRUCT SEQUENCE INITIATED</p>
+            <div id="countdown" class="text-8xl font-mono text-red-500 font-bold mb-8">5.00</div>
+            <button id="cancelDestruct" class="bg-white text-red-900 font-bold py-4 px-10 rounded text-2xl hover:scale-105 transition-transform uppercase">ABORT SEQUENCE</button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="w-full p-6 flex justify-between items-center z-10 relative pointer-events-none max-w-7xl">
+        <div class="pointer-events-auto">
+            <div class="flex items-center gap-4 mb-1">
+                <h1 class="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] drop-shadow-md">
+                    SINGULARITY
+                </h1>
+                <span id="userRank" class="rank-badge">CADET</span>
+            </div>
+            <p class="text-[var(--theme-primary)] text-xs md:text-sm tracking-[0.3em] uppercase opacity-70">
+                System Status: <span id="systemStatus">ONLINE</span> // XP: <span id="xpDisplay">0</span>
+            </p>
+        </div>
+        
+        <!-- Top Right Controls -->
+        <div class="flex gap-3 pointer-events-auto bg-black/40 p-2 rounded-full backdrop-blur items-center">
+            <button id="hackBtn" class="text-gray-400 hover:text-green-400 px-2 transition-colors" title="Hack Protocol"><i class="fas fa-terminal"></i></button>
+            <button id="voiceBtn" class="text-gray-400 hover:text-white px-2 transition-colors" title="Voice Command (VCI)"><i class="fas fa-microphone"></i></button>
+            <button id="exportBtn" class="text-gray-400 hover:text-white px-2 transition-colors" title="Export Data"><i class="fas fa-download"></i></button>
+            <div class="w-px h-6 bg-gray-600 mx-1"></div>
+            <div class="theme-btn bg-cyan-400 active" onclick="setTheme('standard')" title="Standard"></div>
+            <div class="theme-btn bg-red-600" onclick="setTheme('red')" title="Red Alert"></div>
+            <div class="theme-btn bg-green-500" onclick="setTheme('bio')" title="Bio-Hazard"></div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="w-full max-w-7xl px-4 pb-10 flex flex-col lg:flex-row gap-12 items-center justify-center flex-grow z-10 perspective-container">
+        
+        <!-- Left: Wheel -->
+        <div class="w-full lg:w-3/5 flex flex-col items-center justify-center order-2 lg:order-1 wheel-stage">
+            <div id="wheelContainer3D" class="wheel-container relative">
+                <div id="outerRing" class="absolute inset-0 rounded-full border-2 border-[var(--theme-primary)] blur-md opacity-50 transform scale-105 pointer-events-none transition-colors duration-200"></div>
+                <canvas id="wheelCanvas" width="600" height="600" class="max-w-full h-auto rounded-full shadow-2xl relative z-10 pointer-events-none"></canvas>
+                
+                <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 translate-z-10 pointer-events-none">
+                    <div id="reactorCore" class="w-20 h-20 bg-gray-900 rounded-full border-4 border-[var(--theme-primary)] flex items-center justify-center shadow-[0_0_30px_var(--theme-primary)] relative overflow-hidden reactor-pulse transition-all duration-300">
+                        <div id="reactorInner" class="absolute inset-0 bg-gradient-to-tr from-gray-900 to-[var(--theme-accent)] animate-spin-slow transition-all duration-300"></div>
+                        <i class="fas fa-radiation text-3xl text-white relative z-10"></i>
+                    </div>
+                </div>
+
+                <div class="pointer-container pointer-events-none" id="pointerRef">
+                    <div class="pointer-cap"></div>
+                    <div class="pointer-body"></div>
+                </div>
+            </div>
+
+            <!-- Main Button -->
+            <div class="mt-12 flex flex-col items-center gap-4 w-full max-w-md relative z-50" style="transform: translateZ(50px);">
+                <div class="flex gap-4 w-full relative z-50">
+                    <button id="spinBtn" class="btn-glow flex-1 bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] hover:brightness-110 text-black font-black py-4 px-8 rounded-xl text-2xl shadow-[0_0_25px_rgba(255,255,255,0.2)] transform hover:scale-[1.02] active:scale-95 transition-all duration-200 uppercase tracking-widest brand-font border border-white/20 cursor-pointer pointer-events-auto">
+                        ENGAGE <i class="fas fa-rocket ml-2 pointer-events-none"></i>
+                    </button>
+                    
+                    <button id="resetBtn" class="glass-panel text-[var(--theme-primary)] hover:text-white hover:bg-white/10 px-6 rounded-xl transition-all duration-200 border-[var(--theme-accent)] cursor-pointer pointer-events-auto" title="Reset System (R)">
+                        <i class="fas fa-undo-alt text-xl pointer-events-none"></i>
+                    </button>
+                </div>
+                
+                <div class="w-full glass-panel py-2 px-4 flex justify-between items-center text-xs font-mono text-[var(--theme-primary)] pointer-events-auto">
+                    <span id="speedIndicator">VELOCITY: 0 RPM</span>
+                    <span id="statusMsg">READY [SPACE]</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Controls -->
+        <div class="w-full lg:w-2/5 order-1 lg:order-2 flex flex-col gap-4 h-[650px] z-40 relative">
+            
+            <!-- Crew Panel -->
+            <div id="controlPanel" class="glass-panel p-6 flex flex-col h-2/3 border-t-4 border-t-[var(--theme-secondary)] transition-transform">
+                <div class="flex justify-between items-end mb-4 border-b border-gray-700/50 pb-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-wider brand-font">MANIFEST</h2>
+                        <p class="text-xs text-[var(--theme-primary)] mt-1">
+                            Codes: <span class="text-yellow-400">(S)</span> Shield | <span class="text-purple-400">(x2)</span> Gravity
+                            <span class="ml-2 opacity-60">| <span id="saveStatus">Synced</span></span>
+                        </p>
+                    </div>
+                    <span id="countBadge" class="bg-white/10 text-white text-xs font-bold px-3 py-1 rounded border border-white/20">
+                        6 UNITS
+                    </span>
+                </div>
+
+                <div class="flex-grow relative">
+                    <textarea id="namesInput" class="w-full h-full p-4 rounded-lg font-mono text-sm leading-relaxed" spellcheck="false" placeholder="Enter names... Use (x3) for weight, (S) for shield."></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                    <button id="updateBtn" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 hover:text-white font-bold py-3 rounded transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
+                        <i class="fas fa-sync-alt"></i> Update
+                    </button>
+                    <button id="shuffleBtn" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 hover:text-white font-bold py-3 rounded transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wide" title="Shortcut: S">
+                        <i class="fas fa-random"></i> Shuffle
+                    </button>
+                    
+                    <div class="col-span-2 grid grid-cols-4 gap-2 mt-2 items-center">
+                         <label class="flex items-center justify-center cursor-pointer bg-black/30 p-2 rounded">
+                            <input type="checkbox" id="soundToggle" class="accent-[var(--theme-primary)]" checked>
+                            <span class="ml-2 text-[10px] text-gray-400">SFX</span>
+                        </label>
+                        <label class="flex items-center justify-center cursor-pointer bg-black/30 p-2 rounded">
+                            <input type="checkbox" id="voiceToggle" class="accent-[var(--theme-primary)]" checked>
+                            <span class="ml-2 text-[10px] text-gray-400">TTS</span>
+                        </label>
+                        <label class="flex items-center justify-center cursor-pointer bg-black/30 p-2 rounded">
+                            <input type="checkbox" id="glitchToggle" class="accent-[var(--theme-primary)]">
+                            <span class="ml-2 text-[10px] text-gray-400">CRT</span>
+                        </label>
+                        <button id="destructBtn" class="bg-red-900/50 hover:bg-red-600 text-red-400 hover:text-white p-2 rounded border border-red-800 transition-colors" title="SELF DESTRUCT">
+                            <i class="fas fa-skull-crossbones"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs -->
+            <div class="glass-panel p-4 flex flex-col h-1/3 border-t-4 border-t-[var(--theme-primary)] overflow-hidden">
+                <div class="flex justify-between items-center mb-2 border-b border-gray-700/50 pb-2">
+                    <h2 class="text-sm font-bold text-[var(--theme-primary)] tracking-wider brand-font uppercase">
+                        <i class="fas fa-terminal mr-2"></i> Mission Log
+                    </h2>
+                    <button id="clearLogBtn" class="text-xs text-gray-500 hover:text-white"><i class="fas fa-trash"></i></button>
+                </div>
+                <div id="missionLog" class="flex-grow overflow-y-auto text-gray-300 font-mono text-xs pr-2"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="winnerModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md hidden transition-all duration-500">
+        <div class="relative glass-panel p-1 max-w-lg w-full mx-4 transform transition-all duration-300 scale-90 opacity-0" id="modalContent">
+            <div class="absolute inset-0 bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] rounded-2xl opacity-50 blur"></div>
+            
+            <div class="relative bg-gray-900/90 rounded-2xl p-8 text-center overflow-hidden">
+                <div class="relative z-10">
+                    <div class="inline-block p-3 rounded-full bg-gradient-to-br from-[var(--theme-primary)] to-[var(--theme-secondary)] mb-4 shadow-lg">
+                        <i id="modalIcon" class="fas fa-trophy text-2xl text-white"></i>
+                    </div>
+
+                    <h3 id="modalTitle" class="text-xl text-[var(--theme-primary)] font-bold tracking-[0.2em] uppercase mb-2">TARGET LOCKED</h3>
+                    
+                    <div class="my-8 relative">
+                        <h2 id="winnerName" class="text-5xl md:text-6xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.8)] brand-font break-words leading-tight">
+                            NAME
+                        </h2>
+                    </div>
+
+                    <p id="modalSub" class="text-gray-400 text-sm mb-8">Subject will be removed from future rotations.</p>
+
+                    <div class="grid gap-3">
+                        <button id="removeAndContinueBtn" class="w-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] hover:brightness-110 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 group cursor-pointer pointer-events-auto">
+                            <span id="modalBtnText">ELIMINATE & RESUME</span>
+                            <i class="fas fa-forward transition-transform group-hover:translate-x-1"></i>
+                        </button>
+                        <button id="closeModalBtn" class="text-gray-500 hover:text-white text-xs uppercase tracking-widest hover:underline py-2 cursor-pointer pointer-events-auto">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="w-full py-6 text-center text-gray-600 text-xs border-t border-gray-800/30 bg-black/60 z-10 relative">
+        <p>SYSTEM ARCHITECT: <span class="text-[var(--theme-primary)]">Joshua Gawlik</span> // VERSION: <span id="year"></span>.7.0</p>
+    </footer>
+
+    <!-- LOGIC -->
+    <script>
+        // --- CONSTANTS & CONFIG ---
+        const colors = ['#F72585', '#4361EE', '#7209B7', '#4CC9F0', '#FFFFFF', '#3A0CA3'];
+        const CENTER_X = 300;
+        const CENTER_Y = 300;
+        const RADIUS = 280;
+        
+        // --- DOM Elements ---
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const starCanvas = document.getElementById('starfield');
+        const starCtx = starCanvas.getContext('2d');
+        
+        // Controls
+        const spinBtn = document.getElementById('spinBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const updateBtn = document.getElementById('updateBtn');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const namesInput = document.getElementById('namesInput');
+        const soundToggle = document.getElementById('soundToggle');
+        const voiceToggle = document.getElementById('voiceToggle');
+        const glitchToggle = document.getElementById('glitchToggle');
+        const hackBtn = document.getElementById('hackBtn');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const destructBtn = document.getElementById('destructBtn');
+        const clearLogBtn = document.getElementById('clearLogBtn');
+        const closeBtn = document.getElementById('closeModalBtn');
+        const removeBtn = document.getElementById('removeAndContinueBtn');
+        
+        // UI Display
+        const statusMsg = document.getElementById('statusMsg');
+        const speedIndicator = document.getElementById('speedIndicator');
+        const countBadge = document.getElementById('countBadge');
+        const saveStatus = document.getElementById('saveStatus');
+        const missionLog = document.getElementById('missionLog');
+        const userRank = document.getElementById('userRank');
+        const xpDisplay = document.getElementById('xpDisplay');
+        
+        // Visuals
+        const pointerRef = document.getElementById('pointerRef');
+        const wheelContainer3D = document.getElementById('wheelContainer3D');
+        const controlPanel = document.getElementById('controlPanel');
+        const reactorInner = document.getElementById('reactorInner');
+        const root = document.documentElement;
+        
+        // Modals
+        const winnerModal = document.getElementById('winnerModal');
+        const modalContent = document.getElementById('modalContent');
+        const winnerNameEl = document.getElementById('winnerName');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalIcon = document.getElementById('modalIcon');
+        const destructModal = document.getElementById('destructModal');
+        const countdownEl = document.getElementById('countdown');
+        const cancelDestruct = document.getElementById('cancelDestruct');
+
+        // --- STATE ---
+        let crew = [
+            { text: 'Astronaut 1', shielded: false, weight: 1 },
+            { text: 'Alien Queen', shielded: false, weight: 1 },
+            { text: 'Captain (S) (x2)', shielded: true, weight: 2 },
+            { text: 'Star Lord', shielded: false, weight: 1 },
+            { text: 'Cyber Ninja', shielded: false, weight: 1 },
+            { text: 'Galactic Hero', shielded: false, weight: 1 }
+        ];
+        
+        let logHistory = [];
+        let spinCount = 0;
+        let currentAngle = 0;
+        let angularVelocity = 0;
+        let isSpinning = false;
+        let friction = 0.985;
+        let lastWinner = null;
+        let particles = [];
+        let animationId = null;
+        let stars = [];
+        let waves = []; // Gravity waves
+        let width, height;
+        
+        // Sequences
+        let isImploding = false;
+        let implosionIndex = -1;
+        let implosionScale = 1.0;
+        let destructTimer = null;
+        let konamiKeys = [];
+        const konamiCode = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+
+        // --- HELPER: Add To Log ---
+        // Defined early to avoid reference errors
+        function addToLog(name, type = 'eliminated') {
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const entry = { name, time, type };
+            logHistory.unshift(entry);
+            renderLog();
+            saveData();
+        }
+
+        // --- AUDIO ---
+        let audioCtx;
+        try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+        
+        const SoundEngine = {
+            sfxEnabled: true, voiceEnabled: true,
+            
+            speak: function(text) {
+                if (!this.voiceEnabled || !window.speechSynthesis) return;
+                try {
+                    window.speechSynthesis.cancel();
+                    const u = new SpeechSynthesisUtterance(text);
+                    const v = window.speechSynthesis.getVoices();
+                    const sv = v.find(i => i.name.includes('Google US English')) || v[0];
+                    if(sv) u.voice = sv;
+                    u.rate = 1.1; u.pitch = 0.9;
+                    window.speechSynthesis.speak(u);
+                } catch (e) {}
+            },
+            tone: function(t, f, d, v=0.1) {
+                if (!this.sfxEnabled || !audioCtx) return;
+                try {
+                    if (audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
+                    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                    o.type=t; o.frequency.value=f;
+                    g.gain.setValueAtTime(v, audioCtx.currentTime);
+                    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+d);
+                    o.connect(g); g.connect(audioCtx.destination);
+                    o.start(); o.stop(audioCtx.currentTime+d);
+                } catch(e){}
+            },
+            playTick: function() { this.tone('triangle', 800+Math.random()*200, 0.05); },
+            playWin: function() { [440,554,659,880].forEach((f,i)=>setTimeout(()=>this.tone('sine',f,1.5),i*100)); },
+            playShieldBreak: function() { this.tone('sawtooth',2000,0.1); this.tone('square',500,0.3); },
+            playImplode: function() { this.tone('sawtooth',200,0.5,0.3); },
+            playAlarm: function() { this.tone('sawtooth',800,0.5,0.5); }
+        };
+
+        // --- VISUALS CLASSES ---
+        class Star {
+            constructor() { this.z = Math.random() * width; this.reset(); }
+            reset() { this.x=Math.random()*width-width/2; this.y=Math.random()*height-height/2; this.z=width; this.pz=this.z; }
+            update(speed) {
+                this.z -= speed; if(this.z<1) this.reset();
+                
+                // Gravity Wave Logic
+                waves.forEach(w => {
+                    // Project 3D star to 2D for simple distance check
+                    let sx = (this.x/this.z)*width/2+width/2;
+                    let sy = (this.y/this.z)*height/2+height/2;
+                    let dx = sx - w.x; let dy = sy - w.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if(dist < w.r && dist > w.r - 50) {
+                        // Push star away
+                        this.x += dx * 0.1 * w.power;
+                        this.y += dy * 0.1 * w.power;
+                    }
+                });
+            }
+            draw() {
+                let x=(this.x/this.z)*width/2+width/2; let y=(this.y/this.z)*height/2+height/2;
+                let px=(this.x/this.pz)*width/2+width/2; let py=(this.y/this.pz)*height/2+height/2;
+                this.pz = this.z;
+                let op = 1 - this.z/width;
+                starCtx.strokeStyle=`rgba(255,255,255,${op})`; starCtx.lineWidth=op*2;
+                starCtx.beginPath(); starCtx.moveTo(px,py); starCtx.lineTo(x,y); starCtx.stroke();
+            }
+        }
+
+        class Particle {
+            constructor(x,y,c) { this.x=x;this.y=y;this.c=c;this.vx=Math.cos(Math.random()*6.28)*Math.random()*5;this.vy=Math.sin(Math.random()*6.28)*Math.random()*5;this.l=1;}
+            update(){this.x+=this.vx;this.y+=this.vy;this.l-=0.03;return this.l>0;}
+            draw(c){c.save();c.globalAlpha=this.l;c.fillStyle=this.c;c.beginPath();c.arc(this.x,this.y,2,0,6.28);c.fill();c.restore();}
+        }
+
+        function initStars() { width=window.innerWidth; height=window.innerHeight; starCanvas.width=width; starCanvas.height=height; stars=Array(400).fill().map(()=>new Star()); }
+        window.addEventListener('resize', initStars);
+
+        // --- RANK SYSTEM ---
+        function updateRank() {
+            xpDisplay.textContent = spinCount;
+            let rank = "CADET";
+            let color = "text-gray-400";
+            if(spinCount > 5) { rank = "ENSIGN"; color = "text-green-400"; }
+            if(spinCount > 15) { rank = "LIEUTENANT"; color = "text-blue-400"; }
+            if(spinCount > 30) { rank = "CAPTAIN"; color = "text-purple-400"; }
+            if(spinCount > 50) { rank = "ADMIRAL"; color = "text-yellow-400"; }
+            if(spinCount > 100) { rank = "GRAND ADMIRAL"; color = "text-red-500 animate-pulse"; }
+            
+            userRank.textContent = rank;
+            userRank.className = `rank-badge ${color}`;
+        }
+
+        // --- DATA MANIPULATION ---
+        function parseInput() {
+            crew = namesInput.value.split('\n').map(n=>n.trim()).filter(n=>n!=='').map(line => {
+                const isShielded = line.toLowerCase().includes('(s)');
+                const wMatch = line.match(/\(x(\d+)\)/i);
+                return { text: line, shielded: isShielded, weight: wMatch ? parseInt(wMatch[1]) : 1 };
+            });
+        }
+        function namesToString() { return crew.map(c => c.text).join('\n'); }
+        
+        function loadData() {
+            const sName = localStorage.getItem('cosmicWheelNames');
+            const sLog = localStorage.getItem('cosmicWheelLog');
+            const sSpin = localStorage.getItem('cosmicWheelSpinCount');
+            
+            if (sName) {
+                const p = JSON.parse(sName);
+                if(p.length>0 && typeof p[0]==='string') { namesInput.value=p.join('\n'); parseInput(); }
+                else { crew = p; namesInput.value = namesToString(); }
+            } else namesInput.value = namesToString();
+            
+            if (sLog) { logHistory = JSON.parse(sLog); renderLog(); }
+            if (sSpin) spinCount = parseInt(sSpin);
+            
+            updateWheelUI(); updateRank();
+        }
+
+        function saveData() {
+            localStorage.setItem('cosmicWheelNames', JSON.stringify(crew));
+            localStorage.setItem('cosmicWheelLog', JSON.stringify(logHistory));
+            localStorage.setItem('cosmicWheelSpinCount', spinCount.toString());
+            if(saveStatus) { saveStatus.textContent = "Saved"; setTimeout(()=>saveStatus.textContent="Synced",2000); }
+        }
+
+        function renderLog() {
+            missionLog.innerHTML = "";
+            logHistory.forEach(e => {
+                const d=document.createElement('div'); d.className='log-entry';
+                d.innerHTML=`<span class="${e.type==='shield'?'text-blue-400':(e.type==='hack'?'text-green-400':'text-red-400')}">[${e.time}]</span> ${e.type==='shield'?'Shield broke':(e.type==='hack'?'SYS:':'Eliminated')}: <strong>${e.name}</strong>`;
+                missionLog.appendChild(d);
+            });
+        }
+
+        // --- CORE LOOPS ---
+        function gameLoop() {
+            starCtx.fillStyle = '#000000'; starCtx.clearRect(0,0,width,height);
+            
+            // Update Waves
+            waves = waves.filter(w => {
+                w.r += 5; w.alpha -= 0.02;
+                starCtx.beginPath(); starCtx.arc(w.x, w.y, w.r, 0, 6.28);
+                starCtx.strokeStyle = `rgba(${w.c}, ${w.alpha})`; starCtx.lineWidth = 2; starCtx.stroke();
+                return w.alpha > 0;
+            });
+
+            let warpSpeed = 2 + (angularVelocity * 100); if(isImploding) warpSpeed = 50;
+            stars.forEach(star => { star.update(warpSpeed); star.draw(); });
+
+            if (isSpinning) {
+                angularVelocity *= friction;
+                if (angularVelocity < 0.002) { angularVelocity = 0; isSpinning = false; declareWinner(); }
+                currentAngle += angularVelocity;
+                if (currentAngle >= Math.PI*2) currentAngle -= Math.PI*2;
+                checkTicker(); updateStats(); updateReactor();
+            }
+
+            if(isImploding) { implosionScale -= 0.05; if(implosionScale <= 0) finishImplosion(); }
+
+            try { drawWheel(); } catch(e) { if(ctx.filter) ctx.filter='none'; drawWheelSafe(); }
+            particles = particles.filter(p => p.update()); particles.forEach(p => p.draw(ctx));
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateReactor() {
+            let i = Math.min(angularVelocity / 0.8, 1);
+            if(i > 0.5) { reactorInner.classList.remove('from-gray-900'); reactorInner.classList.add('from-red-900'); }
+            else { reactorInner.classList.add('from-gray-900'); reactorInner.classList.remove('from-red-900'); }
+        }
+
+        // --- WHEEL LOGIC ---
+        function getTotalWeight() { return crew.reduce((s, c) => s + c.weight, 0); }
+        function getSliceAtAngle(rad) {
+            rad = rad % (Math.PI * 2); if(rad < 0) rad += Math.PI * 2;
+            let tot = getTotalWeight(); let ca = 0;
+            for(let i=0; i<crew.length; i++) {
+                let sa = (crew[i].weight / tot) * (Math.PI * 2);
+                if(rad >= ca && rad < ca + sa) return i;
+                ca += sa;
+            }
+            return crew.length - 1;
+        }
+
+        function drawWheel() {
+            const tot = getTotalWeight(); let startAngle = currentAngle;
+            ctx.clearRect(0,0,600,600);
+            if(angularVelocity > 0.1 && ctx.filter) ctx.filter=`blur(${angularVelocity*10}px)`; else if(ctx.filter) ctx.filter='none';
+            ctx.save(); ctx.translate(300,300); // Center X/Y constant 300 inside canvas
+
+            for (let i = 0; i < crew.length; i++) {
+                const m = crew[i]; const sa = (m.weight / tot) * (Math.PI * 2);
+                ctx.save(); ctx.rotate(startAngle);
+                if(isImploding && i === implosionIndex) { ctx.rotate(sa/2); ctx.scale(implosionScale, implosionScale); ctx.rotate(-sa/2); }
+                
+                ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,280,0,sa);
+                ctx.fillStyle = colors[i % colors.length]; ctx.fill();
+                
+                if(m.shielded) { ctx.lineWidth=5; ctx.strokeStyle='#00f3ff'; ctx.stroke(); ctx.fillStyle='rgba(0,243,255,0.3)'; ctx.fill(); }
+                
+                ctx.save(); ctx.fillStyle="#fff"; ctx.shadowColor="rgba(0,0,0,0.8)"; ctx.shadowBlur=4;
+                ctx.rotate(sa/2); ctx.translate(170,0); ctx.textAlign="center"; ctx.textBaseline="middle";
+                let txt = m.text.replace(/\(S\)/i,'').replace(/\(x\d+\)/i,'').trim();
+                if(m.shielded) txt = "🛡️ " + txt;
+                ctx.font = `bold ${crew.length>20?10:16}px 'Exo 2'`;
+                ctx.fillText(txt.substring(0,12)+(txt.length>12?"...":""), 0, 0);
+                ctx.restore(); ctx.restore();
+                startAngle += sa;
+            }
+            ctx.restore();
+            
+            if(ctx.filter) ctx.filter='none';
+            ctx.save(); ctx.translate(300,300);
+            ctx.beginPath(); ctx.arc(0,0,280,0,6.28); ctx.lineWidth=10; ctx.strokeStyle="rgba(255,255,255,0.8)"; ctx.stroke();
+            ctx.restore();
+        }
+        
+        function drawWheelSafe() { /* Fallback omitted */ }
+
+        // --- INTERACTIONS ---
+        function checkTicker() {
+            let pa = (Math.PI*1.5 - currentAngle) % (Math.PI*2); if(pa<0) pa+=Math.PI*2;
+            let idx = getSliceAtAngle(pa);
+            if (window.lastSliceIndex !== idx) {
+                SoundEngine.playTick();
+                pointerRef.style.transform = `translateX(-50%) translateZ(20px) rotate(-15deg)`;
+                setTimeout(() => pointerRef.style.transform = `translateX(-50%) translateZ(20px) rotate(0deg)`, 50);
+                window.lastSliceIndex = idx;
+            }
+        }
+
+        function updateWheelUI() { if(crew.length===0)return; countBadge.textContent=`${crew.length} UNITS`; }
+        function updateStats() { speedIndicator.textContent = `VELOCITY: ${Math.floor(angularVelocity * 300)} RPM`; }
+
+        function startSpin() {
+            if(isSpinning || isImploding) return;
+            if(crew.length<2) { if(crew.length===1){lastWinner=crew[0];showModal(true);} return; }
+            if(audioCtx && audioCtx.state==='suspended')audioCtx.resume().catch(e=>{});
+            document.body.classList.add('shake','cinematic-active');
+            setTimeout(()=>document.body.classList.remove('shake'),500);
+            SoundEngine.speak("Engaging."); isSpinning=true; angularVelocity=0.5+Math.random()*0.3;
+            spinCount++; updateRank(); saveData();
+        }
+
+        function declareWinner() {
+            let pa = (Math.PI*1.5 - currentAngle) % (Math.PI*2); if(pa<0) pa+=Math.PI*2;
+            lastWinner = crew[getSliceAtAngle(pa)];
+            document.body.classList.remove('cinematic-active');
+            if(lastWinner.shielded) {
+                let txt = lastWinner.text.replace(/\(S\)/i,'').trim();
+                crew[getSliceAtAngle(pa)].text = txt; crew[getSliceAtAngle(pa)].shielded = false;
+                namesInput.value = namesToString(); saveData();
+                SoundEngine.playShieldBreak(); SoundEngine.speak("Shield broken.");
+                addToLog(txt, 'shield'); alert(`SHIELD SHATTERED!\n${txt} survives.`); parseInput();
+            } else showModal();
+        }
+
+        function showModal(isLast=false) {
+            SoundEngine.playWin();
+            let txt = lastWinner.text.replace(/\(S\)/i,'').replace(/\(x\d+\)/i,'').trim();
+            winnerNameEl.textContent = txt;
+            if(isLast) {
+                SoundEngine.speak(`Survivor: ${txt}`); modalTitle.textContent="FINAL SURVIVOR";
+                removeBtn.innerHTML=`<span>RESET</span>`; removeBtn.onclick=()=>location.reload();
+                closeBtn.style.display='none';
+            } else {
+                SoundEngine.speak(`Target: ${txt}`); modalTitle.textContent="TARGET LOCKED";
+                removeBtn.innerHTML=`<span>ELIMINATE</span>`; removeBtn.onclick=()=>{closeModal();startImplosion();};
+                closeBtn.style.display='block';
+            }
+            confetti({particleCount:100,spread:70,origin:{y:0.6}});
+            winnerModal.classList.remove('hidden'); setTimeout(()=>modalContent.classList.remove('scale-90','opacity-0'),10);
+        }
+
+        function closeModal() { modalContent.classList.add('scale-90','opacity-0'); setTimeout(()=>winnerModal.classList.add('hidden'),300); }
+        function startImplosion() {
+            let idx = crew.indexOf(lastWinner); if(idx===-1)return;
+            isImploding=true; implosionIndex=idx; implosionScale=1.0; SoundEngine.playImplode();
+        }
+        function finishImplosion() {
+            isImploding=false; addToLog(crew[implosionIndex].text.replace(/\(x\d+\)/i,'').trim());
+            crew.splice(implosionIndex,1); namesInput.value=namesToString();
+            currentAngle=0; saveData(); SoundEngine.speak("Eliminated.");
+            if(crew.length===1) setTimeout(()=>{lastWinner=crew[0];showModal(true);},1000);
+        }
+
+        // --- LISTENERS ---
+        document.addEventListener('click', (e) => {
+            // Interactive Gravity Waves on Background
+            if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'TEXTAREA' && e.target.id !== 'modalContent') {
+                waves.push({x:e.clientX, y:e.clientY, r:0, alpha:1, c:'0,243,255', power:5});
+            }
+        });
+
+        // Hack Protocol
+        hackBtn.addEventListener('click', () => {
+            SoundEngine.tone('square', 100, 0.1);
+            const msgs = ["Bypassing Mainframe...", "Decrypting Bio-Data...", "Access Granted.", "Uploading Virus..."];
+            msgs.forEach((m, i) => setTimeout(() => addToLog(m, 'hack'), i * 800));
+        });
+
+        // Konami Code
+        document.addEventListener('keydown', (e) => {
+            konamiKeys.push(e.key);
+            if(konamiKeys.length > konamiCode.length) konamiKeys.shift();
+            if(JSON.stringify(konamiKeys) === JSON.stringify(konamiCode)) {
+                document.body.classList.toggle('theme-disco');
+                SoundEngine.speak("Disco mode activated.");
+                confetti({particleCount:200, spread:100});
+            }
+            
+            if(e.target.tagName === 'TEXTAREA') return;
+            if(e.key === ' ') { e.preventDefault(); startSpin(); }
+            if(e.key.toLowerCase() === 's') shuffleBtn.click();
+            if(e.key.toLowerCase() === 'r') resetBtn.click();
+        });
+
+        // Controls wiring
+        spinBtn.addEventListener('click', startSpin);
+        updateBtn.addEventListener('click', ()=>{parseInput();currentAngle=0;saveData();SoundEngine.speak("Updated.");});
+        resetBtn.addEventListener('click', ()=>{if(confirm("Reset?")){crew=[{text:'Player 1',shielded:false,weight:1},{text:'Player 2',shielded:false,weight:1}];namesInput.value=namesToString();saveData();}});
+        shuffleBtn.addEventListener('click', ()=>{crew.sort(()=>Math.random()-0.5);namesInput.value=namesToString();});
+        
+        soundToggle.addEventListener('change', (e)=>SoundEngine.sfxEnabled=e.target.checked);
+        voiceToggle.addEventListener('change', (e)=>SoundEngine.voiceEnabled=e.target.checked);
+        glitchToggle.addEventListener('change', (e)=>document.body.classList.toggle('glitch-active', e.target.checked));
+        closeBtn.addEventListener('click', closeModal);
+        clearLogBtn.addEventListener('click', ()=>{logHistory=[];renderLog();saveData();});
+        
+        // Destruct
+        destructBtn.addEventListener('click', ()=>{
+            destructModal.classList.remove('hidden'); document.body.classList.add('destruct-active');
+            SoundEngine.speak("Self destruct initiated.");
+            let t=5.00; clearInterval(destructTimer);
+            destructTimer=setInterval(()=>{
+                t-=0.01; countdownEl.textContent=t.toFixed(2); SoundEngine.playAlarm();
+                if(t<=0){
+                    clearInterval(destructTimer); localStorage.clear();
+                    document.body.innerHTML=`<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:black;color:red;font-family:monospace;font-size:2rem;">SIGNAL LOST...</div>`;
+                    setTimeout(()=>location.reload(),3000);
+                }
+            },10);
+        });
+        cancelDestruct.addEventListener('click', ()=>{
+            clearInterval(destructTimer); destructModal.classList.add('hidden');
+            document.body.classList.remove('destruct-active'); SoundEngine.speak("Aborted.");
+        });
+
+        exportBtn.addEventListener('click', ()=>{
+            const d="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify({crew,logHistory,spinCount}));
+            const a=document.createElement('a'); a.setAttribute("href",d); a.setAttribute("download","cosmic_log.json");
+            document.body.appendChild(a); a.click(); a.remove();
+        });
+
+        function setTheme(t) {
+            document.body.className = `flex flex-col items-center theme-${t}`;
+            document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        document.addEventListener('mousemove', (e)=>{
+            if(window.innerWidth<768)return;
+            const x=(window.innerWidth/2-e.pageX)/30; const y=(window.innerHeight/2-e.pageY)/30;
+            wheelContainer3D.style.transform=`rotateY(${x}deg) rotateX(${-y}deg)`;
+        });
+
+        // Voice (Basic)
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const rec = new SR(); rec.lang = 'en-US';
+            voiceBtn.addEventListener('click', ()=>{try{rec.start();statusMsg.textContent="LISTENING...";}catch(e){}});
+            rec.onresult = (e)=>{
+                const c = e.results[0][0].transcript.toLowerCase();
+                if(c.includes('engage')||c.includes('spin')) startSpin();
+                else if(c.includes('reset')) resetBtn.click();
+                else if(c.includes('shuffle')) shuffleBtn.click();
+            };
+            rec.onend=()=>{if(!isSpinning)statusMsg.textContent="READY";};
+        } else voiceBtn.style.display='none';
+
+        document.getElementById('year').textContent = new Date().getFullYear();
+        initStars(); loadData(); gameLoop();
+
+    </script>
+</body>
+</html>
